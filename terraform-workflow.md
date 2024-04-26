@@ -1,6 +1,7 @@
 ![image](https://github.com/ZCHAnalytics/multi-cloud-kubernetes/assets/146954022/7d4da6cd-6ca4-4643-abe5-0d7e0d21e22d)
 
-# Terraform workflow
+I created a Terraform workflow tpo perform the following tasks, using a Terraform tutorial. It was a smooth process, apart from one hitch with the default kubernetes version which was not longer availbable in the selected region. So I only had to find the available version and edit just one file. 
+Tasks:
 - Provision Kubernetes clusters in both Azure and AWS environments using their respective providers
 - Configure Consul federation with mesh gateways across the two clusters using the Helm provider
 - Deploy microservices across the two clusters to verify federation
@@ -45,7 +46,10 @@ First, we need to create an Active Directory service principal account to authen
 ```
 $ az login
 $ az ad sp create-for-rbac --skip-assignment
-$ az aks get-versions --location westus2 # first attempt at applying terraform apply resulted in error, saying that the kubernetes version is not available in the chosen location, so this command helps to find available versions 
+```
+The default kubernetes version was no longer available in chosen location, so I ran this command to find other version.
+```
+$ az aks get-versions --location westus2 
 ```
 Then, in aks directory, run terraform init and terrafrom apply.
 
