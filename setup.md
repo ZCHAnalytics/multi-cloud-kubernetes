@@ -35,71 +35,51 @@ Root
 |   |-- versions.tf
 
 # Provision clusters
-## Provision an EKS Cluster
-AWS: Provision the worker nodes for the cluster.
-The configuration creates a designated network to place the EKS resource. It also provisions an EKS cluster and an autoscaling group of workers to run the workloads.
+## Provision an AWS EKS Cluster
+The configuration creates a designated network to place the EKS resource. It also provisions an EKS cluster and an autoscaling group of workers to run the workloads. In eks directory, run terraform init and terrafrom apply.
 
 ![image](https://github.com/ZCHAnalytics/multi-cloud-kubernetes/assets/146954022/b2ac8f0e-8a40-4415-854d-40c222a0d0d8)
 
-## Provision an AKS Cluster
-- Create an Active Directory service principal account to authenticate the Azure provider.
+## Provision an Azure AKS Cluster
+First, we need to create an Active Directory service principal account to authenticate the Azure provider.
 ```
 az login
 az ad sp create-for-rbac --skip-assignment
 az aks get-versions --location westus2 # first attempt at applying terraform apply resulted in error, saying that the kubernetes version is not available in the chosen location, so this command helps to find available versions 
 ```
+Then, in aks directory, run terraform init and terrafrom apply.
 ![image](https://github.com/ZCHAnalytics/multi-cloud-kubernetes/assets/146954022/e96df87a-1a25-41f4-9354-37adac836b51)
 
-## Consul federation configuration
+### Consul federation configuration files
 To allow services across the two clusters to communicate, set up Consul datacenters in both Kubernetes clusters then federate them. 
 Consul enables a secure multi-cloud infrastructure by creating a secure service mesh that facilitates encrypted communication between your services.
-The configuration will deploy Consul to both  EKS and AKS clusters using the Consul Helm chart and designate the EKS Consul datacenter as the primary. 
+The configuration will deploy Consul to both clusters using the Consul Helm chart and designate the EKS Consul datacenter as the primary. 
 It also uses the Kubernetes provider to share the federation secret across the clusters and to provision the ProxyDefaults configuration as a custom resource.
 
 ![image](https://github.com/ZCHAnalytics/multi-cloud-kubernetes/assets/146954022/6ef722a3-9813-4cb1-b918-4c50678b214e)
 
-## The consul_dc1 Helm release
-
-The consul_dc1 resource deploys a Consul datacenter to the EKS cluster using the hashicorp/consul Helm chart. This is the primary Consul datacenter in this tutorial and the one in which you generate the federation secret.
-
-Warning: This Consul configuration disables ACLs and does not use gossip encryption. Do not use it in production environments.
-
-### The eks_federation_secret data source
-The Kubernetes eks_federation_secret data source accesses the federation secret created in the primary Consul datacenter in your EKS cluster. The depends_on meta-argument explicitly defines the dependency.
-
-### The aks_federation_secret resource
-The Kuberenetes aks_federation_secret resource uses the Kubernetes provider authenticated against your AKS cluster to load the federation secret from your EKS cluster into your AKS cluster. The resource dependency is implicit since it references the eks_federation_secret data source from the EKS cluster.
-
-### The consul_dc2 Helm release
-The consul_dc2 Helm release deploys the secondary Consul datacenter to your AKS cluster. The configuration is similar to that of the primary, but rather than generating the federation secret, the configuration for the secondary datacenter references values from the consul-federation secret you imported.
-
-This configuration leverages Terraform's resource dependency graph to ensure that your resources are created in proper order.
-
-### The eks_proxy_defaults and aks_proxy_defaults Kubernetes manifests
-The eks_proxy_defaults and aks_proxy_defaults resources use Kubernetes custom resources to create Consul ProxyDefaults for each datacenter. The Consul Helm release creates the CRDs the ProxyDefaults use, so you must provision these resources as a separate step.
-
-use the kubernetes_manifest resource to manage Kubernetes custom resources.
-
-Note: The kubernetes_manifest resource type is in beta. You should not use it in production environments.
-
 ### Configure kubectl
-Once Terraform provisions both clusters, use kubectl to verify their respective Consul datacenters.
+Once Terraform provisions both clusters, navigate to ekse and aks directories and verify their respective Consul datacenters.
 ```
 aws eks --region $(terraform output -raw region) update-kubeconfig --name $(terraform output -raw cluster_name) --alias eks
 ```
+![image](https://github.com/ZCHAnalytics/multi-cloud-kubernetes/assets/146954022/52c14036-7c03-410b-ba19-2a2f3b6b737e)
+
 ```
 az aks get-credentials --resource-group $(terraform output -raw resource_group_name) --name $(terraform output -raw kubernetes_cluster_name) --context aks
 ```
+![image](https://github.com/ZCHAnalytics/multi-cloud-kubernetes/assets/146954022/85999fdb-5b5a-441e-8fc5-9f5722e38de4)
+
 ### Deploy Consul and configure cluster federation
-Once Terraform finishes provisioning both clusters, apply the configuration to:
+Once Terraform finishes provisioning both clusters, run and apply the configuration to:
 - Deploy the primary Consul datacenter and proxy defaults to EKS
 - Load the federation secret into the AKS cluster
 - Deploy the secondary Consul cluster
 
-Initialize Terraform directory to download the providers.
+![image](https://github.com/ZCHAnalytics/multi-cloud-kubernetes/assets/146954022/5d61f07c-affd-4902-89ec-231a7079e88c)
 
 ### Deploy ProxyDefaults
-Apply the configuration to create the ProxyDefaults in both clusters. 
+The ProxyDefaults use Custom Resource Definitions and must created after deploying the Consul datacenters. Apply the configuration to create the ProxyDefaults in both clusters. 
 
 ### Verify cluster federation
 List the pods in the default namespace in the EKS cluster to confirm that the Consul pods are running.
